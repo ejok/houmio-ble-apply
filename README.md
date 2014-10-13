@@ -40,6 +40,11 @@ Running houmio-ble-apply application
 
  	npm install
 
-2) Run the application
+2) Define your Houmio site key and scene id to apply
+
+	export HOUMIO_SITEKEY=<your sitekey>
+	export HOUMIO_SCENeID=<scene id to apply>
+
+3) Run the application
 
  	node app.js
