@@ -1,6 +1,14 @@
 What?
 -----
-houmio-ble-apply is a simple app that applies a scene when a pre-configured BLE advertising message is scanned by a BLE dongle attached to your Houmio central unit.
+houmio-ble-apply is a simple app that applies a scene when a pair of pre-configured BLE UUIDs are scanned in correct order by a BLE dongle attached to your Houmio central unit.
+Can be used to turn on the lights when entering to an appartment, for example.
+
+Example setup
+-------------
+An Estimote beacon with a built-in accelerometer is attach to the front door of an appartment and another one is attach to an inner door. When the front door is opened
+first and the inner door right after that, it is intepreted as "someone is entering to the appartment". When that happens a pre-defined scene is applied.
+
+Note: Both of the Estimote beacons need to be configured to have an unique motion proximity UUID, which is broadcasted when the beacon moves.
 
 Getting started
 ---------------
@@ -44,6 +52,8 @@ Running houmio-ble-apply application
 
 	export HOUMIO_SITEKEY=<your sitekey>
 	export HOUMIO_SCENEID=<scene id to apply>
+	export OUTER_DOOR_BLE_UUID=<motion proximity UUID of the beacon attached to the outer door>
+	export INNER_DOOR_BLE_UUID=<motion proximity UUID of the beacon attached to the inner door>
 
 3) Run the application
 
