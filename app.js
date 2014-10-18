@@ -107,7 +107,7 @@ allBeaconUuidStream.take(1).onValue(function() {
 var monitoredBeaconUuidAndTimestampStream = allBeaconUuidStream
 	.filter(isAmongMonitoredUuids)
 	.map(decorateWithTimestamp)
-	.doAction(debugLog('DUPLICATES   ', toHumanReadable))
+	.doAction(debugLog('ALL MONITORED', toHumanReadable))
 	.skipDuplicates(isDuplicateDuringSameDoorOpeningSession(REQUIRED_QUIET_PERIODS_MS))
 	.doAction(debugLog('NO DUPLICATES', toHumanReadable));
 
@@ -120,7 +120,8 @@ var monitoredBeaconUuidAndTimestampWithPreviousStream = monitoredBeaconUuidAndTi
 	});
 
 var quietPeriodControlStream = Bacon.once(true)
-	.merge(monitoredBeaconUuidAndTimestampWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)));
+	.merge(monitoredBeaconUuidAndTimestampWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)))
+	.doAction(debugLog('Quiet period passed'));
 
 var applySceneStream = quietPeriodControlStream
 	.zip(monitoredBeaconUuidAndTimestampWithPreviousStream, function(hasQuietPeriodPassed, uuidsAndTimestamps) {
