@@ -38,9 +38,13 @@ function decorateWithTimestamp(uuid) {
 	};
 }
 
+function isWithinSameDoorOpeningSession(previous, current, quietPeriodMs) {
+	return current.timestamp - previous.timestamp < REQUIRED_QUIET_PERIODS_MS;
+}
+
 function isDuplicateDuringSameDoorOpeningSession(quietPeriodMs) {
 	return function(previous, current) {
-		return previous.uuid === current.uuid && current.timestamp - previous.timestamp < REQUIRED_QUIET_PERIODS_MS;
+		return previous.uuid === current.uuid && isWithinSameDoorOpeningSession(previous, current, quietPeriodMs);
 	}
 }
 
@@ -120,12 +124,12 @@ var monitoredBeaconUuidAndTimestampWithPreviousStream = monitoredBeaconUuidAndTi
 	});
 
 var quietPeriodControlStream = Bacon.once(true)
-	.merge(monitoredBeaconUuidAndTimestampWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)))
-	.doAction(debugLog('Quiet period passed'));
+	.merge(monitoredBeaconUuidAndTimestampWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)));
 
 var applySceneStream = quietPeriodControlStream
 	.zip(monitoredBeaconUuidAndTimestampWithPreviousStream, function(hasQuietPeriodPassed, uuidsAndTimestamps) {
-		return hasQuietPeriodPassed && uuidsAndTimestamps.previous.uuid === OUTER_DOOR_BLE_UUID && uuidsAndTimestamps.current.uuid === INNER_DOOR_BLE_UUID;
+		return hasQuietPeriodPassed && uuidsAndTimestamps.previous.uuid === OUTER_DOOR_BLE_UUID && uuidsAndTimestamps.current.uuid === INNER_DOOR_BLE_UUID && 
+			isWithinSameDoorOpeningSession(uuidsAndTimestamps.previous, uuidsAndTimestamps.current);
 	})
 	.filter(_.identity);
 
