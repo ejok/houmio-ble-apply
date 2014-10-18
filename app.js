@@ -89,7 +89,7 @@ function applyScene() {
 	req.end();
 }
 
-var processToSpawn = IS_DEBUG_SCAN ? './ibeacon_scan_debug' : './beacon_scan';
+var processToSpawn = IS_DEBUG_SCAN ? './ibeacon_scan_debug' : './ibeacon_scan';
 
 console.log('Debug logging: ' + IS_DEBUG_LOGGING);
 console.log('Debug scan: ' + IS_DEBUG_SCAN);
