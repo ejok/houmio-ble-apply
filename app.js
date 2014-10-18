@@ -70,7 +70,10 @@ var scannedBleUUIDStream = Bacon.fromEventTarget(beaconScanCmd.stdout, 'data')
 	.filter(isNotEmpty)
 	.map(toUUID)
 	.filter(isAmongMonitoredUUIDs)
-	.map(decorateWithTimestamp);
+	.map(decorateWithTimestamp)
+	.skipDuplicates(function(prev, next) {
+		return prev.uuid === next.uuid && next.timestamp - prev.timestamp < REQUIRED_QUIET_PERIODS_MS;
+	});
 
 var scannedBleUUIDWithPreviousStream = scannedBleUUIDStream.skip(1)
 	.zip(scannedBleUUIDStream, function(current, previous) {
