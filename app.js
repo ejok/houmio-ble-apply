@@ -7,8 +7,8 @@ var HOUMIO_SITEKEY = process.env.HOUMIO_SITEKEY;
 var HOUMIO_SCENEID = process.env.HOUMIO_SCENEID;
 var OUTER_DOOR_BLE_UUID = process.env.OUTER_DOOR_BLE_UUID;
 var INNER_DOOR_BLE_UUID = process.env.INNER_DOOR_BLE_UUID;
-var IS_DEBUG_SCAN = process.env.IS_DEBUG_SCAN || true;
-var IS_DEBUG_LOGGING = process.env.IS_DEBUG_LOGGING || false;
+var IS_DEBUG_SCAN = process.env.IS_DEBUG_SCAN && process.env.IS_DEBUG_SCAN === 'on' ? true : false || false;
+var IS_DEBUG_LOGGING = process.env.IS_DEBUG_LOGGING && process.env.IS_DEBUG_LOGGING === 'on' ? true : false || false;
 
 // quiet period separates door opening events from each other. that is needed
 // as the BLE stickers may report quite many door opening events when a person
@@ -91,6 +91,8 @@ function applyScene() {
 
 var processToSpawn = IS_DEBUG_SCAN ? './ibeacon_scan_debug' : './beacon_scan';
 
+console.log('Debug logging: ' + IS_DEBUG_LOGGING);
+console.log('Debug scan: ' + IS_DEBUG_SCAN);
 console.log('Turning on BLE device and starting entry detection...');
 var beaconScanCmd = spawn(processToSpawn, ['-b']);
 var allBeaconUuidStream = Bacon.fromEventTarget(beaconScanCmd.stdout, 'data')

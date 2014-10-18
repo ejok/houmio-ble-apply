@@ -54,6 +54,8 @@ Running houmio-ble-apply application
 	export HOUMIO_SCENEID=<scene id to apply>
 	export OUTER_DOOR_BLE_UUID=<motion proximity UUID of the beacon attached to the outer door>
 	export INNER_DOOR_BLE_UUID=<motion proximity UUID of the beacon attached to the inner door>
+	export IS_DEBUG_LOGGING=<on|off. off by default.>
+	export IS_DEBUG_SCAN=<on|off. off by default.>
 
 3) Run the application
 
