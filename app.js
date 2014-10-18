@@ -7,6 +7,8 @@ var HOUMIO_SITEKEY = process.env.HOUMIO_SITEKEY;
 var HOUMIO_SCENEID = process.env.HOUMIO_SCENEID;
 var OUTER_DOOR_BLE_UUID = process.env.OUTER_DOOR_BLE_UUID;
 var INNER_DOOR_BLE_UUID = process.env.INNER_DOOR_BLE_UUID;
+var IS_DEBUG_SCAN = process.env.IS_DEBUG_SCAN || true;
+var IS_DEBUG_LOGGING = process.env.IS_DEBUG_LOGGING || false;
 
 // quiet period separates door opening events from each other. that is needed
 // as the BLE stickers may report quite many door opening events when a person
@@ -25,7 +27,7 @@ function toUUID(scanRow) {
 	return scanRow.split(' ')[0];
 }
 
-function isAmongMonitoredUUIDs(uuid) {
+function isAmongMonitoredUuids(uuid) {
 	return uuid === OUTER_DOOR_BLE_UUID || uuid === INNER_DOOR_BLE_UUID;
 }
 
@@ -36,15 +38,34 @@ function decorateWithTimestamp(uuid) {
 	};
 }
 
+function isDuplicateDuringSameDoorOpeningSession(quietPeriodMs) {
+	return function(previous, current) {
+		return previous.uuid === current.uuid && current.timestamp - previous.timestamp < REQUIRED_QUIET_PERIODS_MS;
+	}
+}
+
 function hasQuietPeriodPassed(quietPeriodMs) {
 	return function(bleAdMessagesWithTime) {
 		return bleAdMessagesWithTime.current.timestamp - bleAdMessagesWithTime.previous.timestamp >= quietPeriodMs;
 	}
 }
 
+function toHumanReadable(uuidWithTimestamp) {
+	var door = uuidWithTimestamp.uuid === OUTER_DOOR_BLE_UUID ? 'Outer door' : 'Inner door';
+	return door + ' / ' + (new Date(uuidWithTimestamp.timestamp));
+}
+
+function debugLog(prefix, mappingFunc) {
+	return function(val) {
+		if (IS_DEBUG_LOGGING) {
+			console.log('[' + prefix + ']', mappingFunc ? mappingFunc(val) : val);
+		}
+	}
+}
+
 function applyScene() {
 
-	console.log('Someone is coming, turn on the lights!');
+	console.log('Entry detected. Applying scene...');
 
 	var options = {
 		method: 'PUT',
@@ -56,7 +77,11 @@ function applyScene() {
 	};
 
 	var req = https.request(options, function(res) {
-		console.log('STATUS: ' + res.statusCode);
+		if (res.statusCode === 200) {
+			console.log('Scene applied successfully.')
+		} else {
+			console.log('Applying scene failed. Status code: ' + res.statusCode);
+		}
 	});
 	req.write(JSON.stringify({
 		_id: HOUMIO_SCENEID
@@ -64,19 +89,28 @@ function applyScene() {
 	req.end();
 }
 
-var beaconScanCmd = spawn('./ibeacon_scan_debug', ['-b']);
-var scannedBleUUIDStream = Bacon.fromEventTarget(beaconScanCmd.stdout, 'data')
+var processToSpawn = IS_DEBUG_SCAN ? './ibeacon_scan_debug' : './beacon_scan';
+
+console.log('Turning on BLE device and starting entry detection...');
+var beaconScanCmd = spawn(processToSpawn, ['-b']);
+var allBeaconUuidStream = Bacon.fromEventTarget(beaconScanCmd.stdout, 'data')
 	.flatMap(splitLines)
 	.filter(isNotEmpty)
-	.map(toUUID)
-	.filter(isAmongMonitoredUUIDs)
-	.map(decorateWithTimestamp)
-	.skipDuplicates(function(prev, next) {
-		return prev.uuid === next.uuid && next.timestamp - prev.timestamp < REQUIRED_QUIET_PERIODS_MS;
-	});
+	.map(toUUID);
 
-var scannedBleUUIDWithPreviousStream = scannedBleUUIDStream.skip(1)
-	.zip(scannedBleUUIDStream, function(current, previous) {
+allBeaconUuidStream.take(1).onValue(function() {
+	console.log('Entry detection in progress.');
+});
+
+var monitoredBeaconUuidAndTimestampStream = allBeaconUuidStream
+	.filter(isAmongMonitoredUuids)
+	.map(decorateWithTimestamp)
+	.doAction(debugLog('DUPLICATES   ', toHumanReadable))
+	.skipDuplicates(isDuplicateDuringSameDoorOpeningSession(REQUIRED_QUIET_PERIODS_MS))
+	.doAction(debugLog('NO DUPLICATES', toHumanReadable));
+
+var monitoredBeaconUuidAndTimestampWithPreviousStream = monitoredBeaconUuidAndTimestampStream.skip(1)
+	.zip(monitoredBeaconUuidAndTimestampStream, function(current, previous) {
 		return {
 			current: current,
 			previous: previous
@@ -84,11 +118,11 @@ var scannedBleUUIDWithPreviousStream = scannedBleUUIDStream.skip(1)
 	});
 
 var quietPeriodControlStream = Bacon.once(true)
-	.merge(scannedBleUUIDWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)));
+	.merge(monitoredBeaconUuidAndTimestampWithPreviousStream.map(hasQuietPeriodPassed(REQUIRED_QUIET_PERIODS_MS)));
 
 var applySceneStream = quietPeriodControlStream
-	.zip(scannedBleUUIDWithPreviousStream, function(hasQuietPeriodPassed, bleAdMessages) {
-		return hasQuietPeriodPassed && bleAdMessages.previous.uuid === OUTER_DOOR_BLE_UUID && bleAdMessages.current.uuid === INNER_DOOR_BLE_UUID;
+	.zip(monitoredBeaconUuidAndTimestampWithPreviousStream, function(hasQuietPeriodPassed, uuidsAndTimestamps) {
+		return hasQuietPeriodPassed && uuidsAndTimestamps.previous.uuid === OUTER_DOOR_BLE_UUID && uuidsAndTimestamps.current.uuid === INNER_DOOR_BLE_UUID;
 	})
 	.filter(_.identity);
 
